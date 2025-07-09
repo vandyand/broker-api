@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  broker-api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - .:/app
+    environment:
+      - DATABASE_URL=sqlite:///./data/broker.db
+      - OANDA_API_KEY=${OANDA_API_KEY}
+      - OANDA_ACCOUNT_ID=${OANDA_ACCOUNT_ID}
+      - OANDA_ENVIRONMENT=${OANDA_ENVIRONMENT}
+      - BITUNIX_API_KEY=${BITUNIX_API_KEY}
+      - BITUNIX_SECRET_KEY=${BITUNIX_SECRET_KEY}
+    restart: unless-stopped 

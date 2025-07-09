@@ -1,0 +1,115 @@
+## Fetching Bitunix Cryptocurrency Futures Prices via API
+
+You can easily fetch real-time futures prices from Bitunix using their public API. Below are the steps and details to help you get started.
+
+### 1. Generate API Keys (If Needed)
+
+- For public price data, authentication is not required.
+- If you plan to access private endpoints (like account or trading), log in to Bitunix, go to your profile, and create API keys under "API Management." Make sure to keep your API secret safe[1][2].
+
+### 2. API Endpoint for Futures Prices
+
+To fetch futures prices, use the following endpoint:
+
+```
+GET https://fapi.bitunix.com/api/v1/futures/market/tickers
+```
+
+#### Parameters
+
+- `symbols` (optional): Comma-separated list of trading pairs (e.g., BTCUSDT,ETHUSDT). If omitted, returns all pairs.
+
+#### Example Request
+
+```bash
+curl -X GET "https://fapi.bitunix.com/api/v1/futures/market/tickers?symbols=BTCUSDT,ETHUSDT"
+```
+
+#### Example Response
+
+```json
+{
+  "code": 0,
+  "data": [
+    {
+      "symbol": "BTCUSDT",
+      "markPrice": "57892.1",
+      "lastPrice": "57891.2",
+      "open": "6.31",
+      "last": "6.31",
+      "quoteVol": "0",
+      "baseVol": "0",
+      "high": "6.31",
+      "low": "6.31"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "markPrice": "2000",
+      "lastPrice": "2020.1",
+      "open": "6.31",
+      "last": "6.31",
+      "quoteVol": "0",
+      "baseVol": "0",
+      "high": "6.31",
+      "low": "6.31"
+    }
+  ],
+  "msg": "Success"
+}
+```
+Key fields:
+- `markPrice`: Mark price for the contract
+- `lastPrice`: Last traded price
+- `high`/`low`: 24h high/low
+- `quoteVol`/`baseVol`: 24h trading volume[3]
+
+### 3. Rate Limits
+
+- The endpoint allows up to 10 requests per second per IP address[3].
+
+### 4. Additional Market Data
+
+- For historical prices (Klines/candlesticks):  
+  `GET /api/v1/futures/market/kline`
+- For funding rates:  
+  `GET /api/v1/futures/market/funding_rate`[4][5]
+
+### 5. API Documentation
+
+- Full documentation is available at Bitunix OpenAPI docs, which provides detailed info on all endpoints, parameters, and response formats[6][3].
+
+### 6. Security Best Practices
+
+- For public data, no authentication is needed.
+- For private endpoints, use your API key and secret, keep them secure, and use permissions appropriately[1][2].
+
+**Summary Table: Bitunix Futures Price Fetching**
+
+| Action                | Endpoint                                         | Auth Required | Notes              |
+|-----------------------|--------------------------------------------------|---------------|--------------------|
+| Get all tickers       | `/api/v1/futures/market/tickers`                 | No            | Use `symbols` param for specific pairs[3] |
+| Get trading pairs     | `/api/v1/futures/market/trading_pairs`           | No            | List of available pairs[7] |
+| Get funding rate      | `/api/v1/futures/market/funding_rate`            | No            | Current funding rate[4] |
+| Get kline (candles)   | `/api/v1/futures/market/kline`                   | No            | Historical prices[5] |
+
+For more advanced usage, refer to the official Bitunix API documentation and tutorials[3][1][6].
+
+[1] https://www.youtube.com/watch?v=gxAr1P9xEWQ
+[2] https://support.bitunix.com/hc/en-us/articles/41979754327065-Announcement-API-Usage-Guidelines
+[3] https://openapidoc.bitunix.com/doc/market/get_tickers.html
+[4] https://openapidoc.bitunix.com/doc/market/get_funding_rate.html
+[5] https://openapidoc.bitunix.com/doc/market/get_kline.html
+[6] https://openapidoc.bitunix.com
+[7] https://openapidoc.bitunix.com/doc/market/get_trading_pairs.html
+[8] https://www.bitunix.com
+[9] https://lumibot.lumiwealth.com/brokers.bitunix.html
+[10] https://www.coingecko.com/en/exchanges/bitunix-futures
+[11] https://support.bitunix.com/hc/en-us/articles/46581721928985--Tutorial-How-to-Use-Bitunix-CopyTrading-API
+[12] https://openapidoc.bitunix.com/doc/trade/get_order_detail.html
+[13] https://coinmarketcap.com/exchanges/bitunix/
+[14] https://openapidoc.bitunix.com/doc/position/get_history_positions.html
+[15] https://support.bitunix.com/hc/en-us/articles/16492827232921-Bitunix-Futures-Services-Agreement
+[16] https://support.bitunix.com/hc/en-us
+[17] https://www.tradesviz.com/blog/auto-import-bitunix/
+[18] https://cryptorobotics.ai/ai-bot/exchange/bitunix/
+[19] https://www.reddit.com/r/CryptoMarkets/comments/1gue3m2/is_bitunix_a_good_exchange_or_are_there_better/
