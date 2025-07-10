@@ -100,3 +100,6 @@ celerybeat.pid
 .mypy_cache/
 .dmypy.json
 dmypy.json 
+
+# Ignore Python cache directories everywhere
+**/__pycache__/ 
