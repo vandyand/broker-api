@@ -19,6 +19,8 @@ class TradingService:
         try:
             # Get current price for the instrument
             instrument = order.instrument
+            logger.info(f"Executing order {order.id} for {instrument.symbol}")
+            
             price_data = await price_service.get_price(instrument.symbol, instrument.instrument_type.value)
             
             if not price_data:
@@ -26,6 +28,8 @@ class TradingService:
                 order.status = OrderStatus.REJECTED
                 db.commit()
                 return False
+            
+            logger.info(f"Got price for {instrument.symbol}: bid={price_data.bid}, ask={price_data.ask}")
             
             # Determine execution price based on order type and side
             if order.order_type.value == "market":
@@ -74,6 +78,8 @@ class TradingService:
             # Update account balance
             await self._update_account_balance(db, order.account_id, order.side, 
                                             order.quantity, execution_price, commission)
+            
+            logger.info(f"Order {order.id} execution completed successfully")
             
             db.commit()
             logger.info(f"Order {order.id} executed successfully at {execution_price}")

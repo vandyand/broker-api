@@ -8,10 +8,9 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# Add the app directory to the Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from services.price_service import PriceService
+from app.services.price_service import PriceService
 
 async def test_comprehensive_integration():
     """Test both OANDA and Bitunix integration comprehensively"""

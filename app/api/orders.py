@@ -152,7 +152,13 @@ async def execute_order_task(order_id: int):
     try:
         order = db.query(Order).filter(Order.id == order_id).first()
         if order and order.status == OrderStatus.PENDING:
-            await trading_service.execute_order(db, order)
+            success = await trading_service.execute_order(db, order)
+            if success:
+                print(f"Order {order_id} executed successfully")
+            else:
+                print(f"Order {order_id} execution failed")
+        else:
+            print(f"Order {order_id} not found or not pending")
     except Exception as e:
         print(f"Error executing order {order_id}: {e}")
     finally:
