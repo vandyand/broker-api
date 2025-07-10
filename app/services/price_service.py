@@ -126,8 +126,8 @@ class PriceService:
         """Initialize API clients for price providers"""
         # Initialize OANDA client
         # Get OANDA credentials from environment variables
-        oanda_api_key = os.getenv('OANDA_DEMO_KEY')
-        oanda_account_id = os.getenv('OANDA_DEMO_ACCOUNT_ID')
+        oanda_api_key = settings.oanda_api_key
+        oanda_account_id = settings.oanda_account_id
         
         if oanda_api_key and oanda_account_id:
             try:
@@ -146,8 +146,8 @@ class PriceService:
                 logger.error(f"Failed to initialize OANDA client: {e}")
         
         # Initialize Bitunix client
-        bitunix_api_key = os.getenv('BITUNIX_API_KEY')
-        bitunix_secret_key = os.getenv('BITUNIX_SECRET_KEY')
+        bitunix_api_key = settings.bitunix_api_key
+        bitunix_secret_key = settings.bitunix_secret_key
         
         if bitunix_api_key and bitunix_secret_key:
             try:
@@ -296,6 +296,113 @@ class PriceService:
                 prices.append(result)
         
         return prices
+    
+    async def get_available_instruments(self) -> Dict[str, List[str]]:
+        """Get all available instruments from both providers"""
+        instruments = {"forex": [], "crypto": []}
+        
+        # Get OANDA instruments
+        if self.oanda_client:
+            try:
+                oanda_instruments = await self.oanda_client.get_instruments()
+                if oanda_instruments:
+                    for instrument in oanda_instruments:
+                        symbol = instrument.get('name', '')
+                        if symbol:
+                            instruments["forex"].append(symbol)
+                    logger.info(f"Found {len(instruments['forex'])} OANDA instruments")
+            except Exception as e:
+                logger.error(f"Error fetching OANDA instruments: {e}")
+        
+        # Get Bitunix instruments
+        if hasattr(self, '_bitunix_config'):
+            if not self.bitunix_client:
+                try:
+                    self.bitunix_client = BitunixClient(
+                        api_key=self._bitunix_config['api_key'],
+                        secret_key=self._bitunix_config['secret_key'],
+                        base_url=self._bitunix_config['base_url']
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to initialize Bitunix client: {e}")
+                    return instruments
+            
+            try:
+                # Get all tickers to extract available symbols
+                tickers_data = await self.bitunix_client.get_tickers()
+                if tickers_data and isinstance(tickers_data, list):
+                    for ticker in tickers_data:
+                        symbol = ticker.get('symbol', '')
+                        if symbol:
+                            # Convert Bitunix format (BTCUSDT) to our format (BTC_USDT)
+                            formatted_symbol = self._format_bitunix_symbol(symbol)
+                            if formatted_symbol:
+                                instruments["crypto"].append(formatted_symbol)
+                    logger.info(f"Found {len(instruments['crypto'])} Bitunix instruments")
+            except Exception as e:
+                logger.error(f"Error fetching Bitunix instruments: {e}")
+        
+        return instruments
+    
+    def _format_bitunix_symbol(self, symbol: str) -> Optional[str]:
+        """Convert Bitunix symbol format to our format"""
+        # Bitunix symbols are like BTCUSDT, ETHUSDT, etc.
+        # We want to convert to BTC_USDT, ETH_USDT, etc.
+        if len(symbol) < 6:  # Minimum length for a valid pair
+            return None
+        
+        # Common quote currencies in crypto
+        quote_currencies = ['USDT', 'USD', 'BTC', 'ETH', 'BNB', 'ADA', 'DOT', 'LINK', 'LTC', 'BCH', 'XRP']
+        
+        for quote in quote_currencies:
+            if symbol.endswith(quote):
+                base = symbol[:-len(quote)]
+                if base and len(base) >= 2:  # Ensure base currency has reasonable length
+                    return f"{base}_{quote}"
+        
+        return None
+    
+    async def get_instrument_type(self, symbol: str) -> Optional[str]:
+        """Determine instrument type for a given symbol"""
+        # First check if it's in our database
+        # This would require a database session, so we'll implement a different approach
+        
+        # Check if it's a forex pair (common patterns)
+        forex_patterns = [
+            # Major pairs
+            'EUR_USD', 'GBP_USD', 'USD_JPY', 'USD_CHF', 'AUD_USD', 'USD_CAD', 'NZD_USD',
+            # Cross pairs
+            'EUR_GBP', 'EUR_JPY', 'GBP_JPY', 'EUR_CHF', 'AUD_JPY', 'CAD_JPY',
+            # Other common forex pairs
+            'USD_CNH', 'USD_SGD', 'USD_HKD', 'USD_SEK', 'USD_NOK', 'USD_DKK',
+            'EUR_AUD', 'EUR_CAD', 'GBP_AUD', 'GBP_CAD', 'AUD_CAD', 'NZD_JPY'
+        ]
+        
+        if symbol in forex_patterns:
+            return "forex"
+        
+        # Check if it's a crypto pair (common patterns)
+        crypto_patterns = [
+            'BTC_USDT', 'ETH_USDT', 'BNB_USDT', 'ADA_USDT', 'DOT_USDT', 'LINK_USDT',
+            'LTC_USDT', 'BCH_USDT', 'XRP_USDT', 'EOS_USDT', 'TRX_USDT', 'XLM_USDT',
+            'BTC_USD', 'ETH_USD', 'BTC_ETH', 'ETH_BTC'
+        ]
+        
+        if symbol in crypto_patterns:
+            return "crypto"
+        
+        # If not in common patterns, try to determine by structure
+        if '_' in symbol:
+            parts = symbol.split('_')
+            if len(parts) == 2:
+                # Check if it looks like forex (3-letter codes)
+                if len(parts[0]) == 3 and len(parts[1]) == 3:
+                    return "forex"
+                # Check if it looks like crypto (variable length)
+                else:
+                    return "crypto"
+        
+        return None
 
 
 # Global price service instance

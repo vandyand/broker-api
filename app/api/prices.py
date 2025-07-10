@@ -12,12 +12,19 @@ router = APIRouter(prefix="/prices", tags=["prices"])
 @router.get("/{symbol}", response_model=PriceData)
 async def get_price(symbol: str, db: Session = Depends(get_db)):
     """Get current price for a specific symbol"""
-    # Get instrument to determine type
+    # First try to get instrument from database
     instrument = db.query(Instrument).filter(Instrument.symbol == symbol).first()
-    if not instrument:
-        raise HTTPException(status_code=404, detail="Instrument not found")
     
-    price_data = await price_service.get_price(symbol, instrument.instrument_type.value)
+    if instrument:
+        # Use database instrument type
+        instrument_type = instrument.instrument_type.value
+    else:
+        # Try to determine instrument type automatically
+        instrument_type = await price_service.get_instrument_type(symbol)
+        if not instrument_type:
+            raise HTTPException(status_code=404, detail="Instrument not found")
+    
+    price_data = await price_service.get_price(symbol, instrument_type)
     if not price_data:
         raise HTTPException(status_code=404, detail="Price not available")
     
@@ -48,13 +55,22 @@ async def get_prices_batch(symbols: List[dict], db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Symbol is required for each item")
         
         symbol = symbol_info['symbol']
+        
+        # First try to get instrument from database
         instrument = db.query(Instrument).filter(Instrument.symbol == symbol).first()
-        if not instrument:
-            raise HTTPException(status_code=404, detail=f"Instrument not found for symbol: {symbol}")
+        
+        if instrument:
+            # Use database instrument type
+            instrument_type = instrument.instrument_type.value
+        else:
+            # Try to determine instrument type automatically
+            instrument_type = await price_service.get_instrument_type(symbol)
+            if not instrument_type:
+                raise HTTPException(status_code=404, detail=f"Instrument not found for symbol: {symbol}")
         
         validated_symbols.append({
             'symbol': symbol,
-            'instrument_type': instrument.instrument_type.value
+            'instrument_type': instrument_type
         })
     
     prices = await price_service.get_prices_batch(validated_symbols)
@@ -85,4 +101,17 @@ async def get_account_position_prices(account_id: int, db: Session = Depends(get
     symbols = [{'symbol': inst.symbol, 'instrument_type': inst.instrument_type.value} for inst in instruments]
     
     prices = await price_service.get_prices_batch(symbols)
-    return prices 
+    return prices
+
+
+@router.get("/instruments/available", response_model=dict)
+async def get_available_instruments():
+    """Get all available instruments from OANDA and Bitunix"""
+    instruments = await price_service.get_available_instruments()
+    return {
+        "forex": instruments["forex"],
+        "crypto": instruments["crypto"],
+        "total_forex": len(instruments["forex"]),
+        "total_crypto": len(instruments["crypto"]),
+        "total": len(instruments["forex"]) + len(instruments["crypto"])
+    } 
