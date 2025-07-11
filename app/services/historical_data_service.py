@@ -5,7 +5,7 @@ Provides unified historical candlestick data with automatic chunking and caching
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
@@ -70,53 +70,76 @@ class HistoricalDataService:
     }
     
     def __init__(self):
-        self.oanda_client = None
-        self.bitunix_client = None
-        self._initialize_clients()
+        # Store credentials but don't initialize clients yet
+        self.oanda_api_key = settings.oanda_api_key
+        self.oanda_account_id = settings.oanda_account_id
+        self.oanda_environment = settings.oanda_environment
+        self.bitunix_api_key = settings.bitunix_api_key
+        self.bitunix_secret_key = settings.bitunix_secret_key
+        
+        # Client instances (will be created lazily)
+        self._oanda_client = None
+        self._bitunix_client = None
+        
+        logger.info("HistoricalDataService initialized (lazy client creation)")
     
-    def _initialize_clients(self):
-        """Initialize API clients"""
-        # Initialize OANDA client
-        oanda_api_key = settings.oanda_api_key
-        oanda_account_id = settings.oanda_account_id
+    async def _get_oanda_client(self) -> Optional[OandaClient]:
+        """Get or create OANDA client asynchronously"""
+        if self._oanda_client is not None:
+            return self._oanda_client
         
-        if oanda_api_key and oanda_account_id:
-            try:
-                base_url = "https://api-fxpractice.oanda.com/v3"
-                if settings.oanda_environment == "live":
-                    base_url = "https://api-fxtrade.oanda.com/v3"
-                
-                self.oanda_client = OandaClient(
-                    api_key=oanda_api_key,
-                    account_id=oanda_account_id,
-                    base_url=base_url
-                )
-                logger.info("OANDA historical client initialized")
-            except Exception as e:
-                logger.error(f"Failed to initialize OANDA client: {e}")
+        if not self.oanda_api_key or not self.oanda_account_id:
+            logger.warning("OANDA credentials not available")
+            return None
         
-        # Initialize Bitunix client
-        bitunix_api_key = settings.bitunix_api_key
-        bitunix_secret_key = settings.bitunix_secret_key
+        try:
+            base_url = "https://api-fxpractice.oanda.com/v3"
+            if self.oanda_environment == "live":
+                base_url = "https://api-fxtrade.oanda.com/v3"
+            
+            self._oanda_client = OandaClient(
+                api_key=self.oanda_api_key,
+                account_id=self.oanda_account_id,
+                base_url=base_url
+            )
+            logger.info("OANDA historical client created successfully")
+            return self._oanda_client
+            
+        except Exception as e:
+            logger.error(f"Failed to create OANDA client: {e}")
+            return None
+    
+    async def _get_bitunix_client(self) -> Optional[BitunixClient]:
+        """Get or create Bitunix client asynchronously"""
+        if self._bitunix_client is not None:
+            return self._bitunix_client
         
-        if bitunix_api_key and bitunix_secret_key:
-            try:
-                base_url = "https://fapi.bitunix.com"
-                self.bitunix_client = BitunixClient(
-                    api_key=bitunix_api_key,
-                    secret_key=bitunix_secret_key,
-                    base_url=base_url
-                )
-                logger.info("Bitunix historical client initialized")
-            except Exception as e:
-                logger.error(f"Failed to initialize Bitunix client: {e}")
+        if not self.bitunix_api_key or not self.bitunix_secret_key:
+            logger.warning("Bitunix credentials not available")
+            return None
+        
+        try:
+            base_url = "https://fapi.bitunix.com"
+            self._bitunix_client = BitunixClient(
+                api_key=self.bitunix_api_key,
+                secret_key=self.bitunix_secret_key,
+                base_url=base_url
+            )
+            logger.info("Bitunix historical client created successfully")
+            return self._bitunix_client
+            
+        except Exception as e:
+            logger.error(f"Failed to create Bitunix client: {e}")
+            return None
     
     async def close(self):
         """Close all client sessions"""
-        if self.oanda_client:
-            await self.oanda_client.close()
-        if self.bitunix_client:
-            await self.bitunix_client.close()
+        if self._oanda_client:
+            await self._oanda_client.close()
+            self._oanda_client = None
+        if self._bitunix_client:
+            await self._bitunix_client.close()
+            self._bitunix_client = None
     
     def _determine_source(self, symbol: str, source: str = "auto") -> str:
         """Determine which broker to use for a symbol"""
@@ -171,10 +194,15 @@ class HistoricalDataService:
         """
         source = self._determine_source(request.symbol, request.source)
         
-        if source == "oanda" and not self.oanda_client:
-            raise ValueError("Oanda client not available")
-        elif source == "bitunix" and not self.bitunix_client:
-            raise ValueError("Bitunix client not available")
+        # Get the appropriate client
+        if source == "oanda":
+            client = await self._get_oanda_client()
+            if not client:
+                raise ValueError("Oanda client not available")
+        else:
+            client = await self._get_bitunix_client()
+            if not client:
+                raise ValueError("Bitunix client not available")
         
         # Set default time range if not provided
         if not request.end_time:
@@ -200,11 +228,11 @@ class HistoricalDataService:
             
             if source == "oanda":
                 candles = await self._fetch_oanda_chunk(
-                    request.symbol, request.interval, chunk_start, chunk_end
+                    client, request.symbol, request.interval, chunk_start, chunk_end
                 )
             else:
                 candles = await self._fetch_bitunix_chunk(
-                    request.symbol, request.interval, chunk_start, chunk_end
+                    client, request.symbol, request.interval, chunk_start, chunk_end
                 )
             
             if candles:
@@ -223,13 +251,13 @@ class HistoricalDataService:
         logger.info(f"Retrieved {len(all_candles)} total candles")
         return all_candles
     
-    async def _fetch_oanda_chunk(self, symbol: str, interval: str, 
+    async def _fetch_oanda_chunk(self, client: OandaClient, symbol: str, interval: str, 
                                 start_time: datetime, end_time: datetime) -> List[CandleData]:
         """Fetch a chunk of Oanda historical data"""
         try:
             mapped_interval = self._map_interval(interval, "oanda")
             
-            candles = await self.oanda_client.get_candles(
+            candles = await client.get_candles(
                 instrument=symbol,
                 granularity=mapped_interval,
                 from_time=start_time.isoformat() + 'Z',
@@ -242,8 +270,13 @@ class HistoricalDataService:
             result = []
             for candle in candles:
                 if candle.get('complete', True):  # Only include complete candles
+                    # Parse timestamp and ensure it's timezone-aware
+                    time_str = candle['time']
+                    if time_str.endswith('Z'):
+                        time_str = time_str.replace('Z', '+00:00')
+                    
                     result.append(CandleData(
-                        timestamp=datetime.fromisoformat(candle['time'].replace('Z', '+00:00')),
+                        timestamp=datetime.fromisoformat(time_str),
                         open=float(candle['mid']['o']),
                         high=float(candle['mid']['h']),
                         low=float(candle['mid']['l']),
@@ -258,22 +291,22 @@ class HistoricalDataService:
             logger.error(f"Error fetching Oanda chunk: {e}")
             return []
     
-    async def _fetch_bitunix_chunk(self, symbol: str, interval: str,
+    async def _fetch_bitunix_chunk(self, client: BitunixClient, symbol: str, interval: str,
                                   start_time: datetime, end_time: datetime) -> List[CandleData]:
         """Fetch a chunk of Bitunix historical data"""
         try:
             mapped_interval = self._map_interval(interval, "bitunix")
             
-            # Convert to milliseconds
+            # Convert datetime to milliseconds timestamp
             start_ms = int(start_time.timestamp() * 1000)
             end_ms = int(end_time.timestamp() * 1000)
             
-            klines = await self.bitunix_client.get_kline(
+            klines = await client.get_kline(
                 symbol=symbol,
                 interval=mapped_interval,
-                limit=self.BROKER_LIMITS["bitunix"],
                 start_time=start_ms,
-                end_time=end_ms
+                end_time=end_ms,
+                limit=self.BROKER_LIMITS["bitunix"]
             )
             
             if not klines:
@@ -286,8 +319,11 @@ class HistoricalDataService:
                 if isinstance(time_value, str):
                     time_value = int(time_value)
                 
+                # Create timezone-aware timestamp (UTC)
+                timestamp = datetime.fromtimestamp(time_value / 1000, tz=timezone.utc)
+                
                 result.append(CandleData(
-                    timestamp=datetime.fromtimestamp(time_value / 1000),
+                    timestamp=timestamp,
                     open=float(kline['open']),
                     high=float(kline['high']),
                     low=float(kline['low']),
@@ -305,8 +341,8 @@ class HistoricalDataService:
     async def get_available_intervals(self) -> Dict[str, List[str]]:
         """Get available intervals for each broker"""
         return {
-            "oanda": ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
-            "bitunix": ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+            "oanda": list(self.INTERVAL_MAPPINGS["oanda"].keys()),
+            "bitunix": list(self.INTERVAL_MAPPINGS["bitunix"].keys())
         }
     
     def get_broker_limits(self) -> Dict[str, int]:

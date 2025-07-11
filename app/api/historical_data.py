@@ -69,8 +69,12 @@ class CacheStatsResponse(BaseModel):
 
 
 # Dependency injection
-def get_historical_service():
-    return HistoricalDataService()
+async def get_historical_service():
+    service = HistoricalDataService()
+    try:
+        yield service
+    finally:
+        await service.close()
 
 
 def get_cache_service():

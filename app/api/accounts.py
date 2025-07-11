@@ -39,12 +39,30 @@ def get_accounts(
     total = query.count()
     accounts = query.offset(skip).limit(limit).all()
     
+    # Convert accounts to dict format safely
+    account_items = []
+    for account in accounts:
+        try:
+            account_dict = {
+                "id": account.id,
+                "name": account.name,
+                "account_type": account.account_type.value,
+                "balance": account.balance,
+                "currency": account.currency,
+                "created_at": account.created_at,
+                "updated_at": account.updated_at
+            }
+            account_items.append(account_dict)
+        except Exception as e:
+            print(f"Error converting account {account.id}: {e}")
+            continue
+    
     return PaginatedResponse(
-        items=[AccountSchema.from_orm(account).dict() for account in accounts],
+        items=account_items,
         total=total,
-        page=skip // limit + 1,
+        page=(skip // limit) + 1 if limit > 0 else 1,
         size=limit,
-        pages=(total + limit - 1) // limit
+        pages=(total + limit - 1) // limit if limit > 0 else 1
     )
 
 
