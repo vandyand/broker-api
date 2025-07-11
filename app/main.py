@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 from app.database import engine, Base
-from app.api import accounts, instruments, orders, positions, trades, prices
+from app.api import accounts, instruments, orders, positions, trades, prices, historical_data
 from app.config import settings
 
 # Configure logging
@@ -55,6 +55,7 @@ app.include_router(orders.router)
 app.include_router(positions.router)
 app.include_router(trades.router)
 app.include_router(prices.router)
+app.include_router(historical_data.router)
 
 
 @app.get("/")
@@ -92,6 +93,7 @@ async def api_info():
             "orders": "/orders",
             "positions": "/positions",
             "trades": "/trades",
-            "prices": "/prices"
+            "prices": "/prices",
+            "historical_data": "/historical"
         }
     } 

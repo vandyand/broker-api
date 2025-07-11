@@ -56,6 +56,52 @@ class BitunixClient:
             logger.error(f"Error fetching Bitunix depth for {symbol}: {e}")
             return None
     
+    async def get_kline(self, symbol: str, interval: str, limit: int = 100, 
+                       start_time: Optional[int] = None, end_time: Optional[int] = None, 
+                       kline_type: str = "LAST_PRICE") -> Optional[List[Dict]]:
+        """
+        Get historical kline/candlestick data
+        
+        Args:
+            symbol: Trading pair (e.g., BTCUSDT)
+            interval: Kline interval (1m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
+            limit: Number of candles to return (default 100, max 200)
+            start_time: Start time in milliseconds (Unix timestamp)
+            end_time: End time in milliseconds (Unix timestamp)
+            kline_type: Kline type - LAST_PRICE or MARK_PRICE (default: LAST_PRICE)
+            
+        Returns:
+            List of kline data dictionaries or None if error
+        """
+        try:
+            url = f"{self.base_url}/api/v1/futures/market/kline"
+            params = {
+                'symbol': symbol,
+                'interval': interval,
+                'limit': limit,
+                'type': kline_type
+            }
+            
+            if start_time is not None:
+                params['startTime'] = start_time
+            if end_time is not None:
+                params['endTime'] = end_time
+            
+            async with self.session.get(url, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get('code') == 0:  # Success code
+                        return data.get('data', [])
+                    else:
+                        logger.error(f"Bitunix API error: {data.get('msg', 'Unknown error')}")
+                        return None
+                else:
+                    logger.error(f"HTTP error {response.status} fetching Bitunix klines for {symbol}")
+                    return None
+        except Exception as e:
+            logger.error(f"Error fetching Bitunix klines for {symbol}: {e}")
+            return None
+    
     async def close(self):
         """Close the aiohttp session"""
         await self.session.close()
@@ -109,6 +155,52 @@ class OandaClient:
                 return None
         except Exception as e:
             logger.error(f"Error fetching OANDA instruments: {e}")
+            return None
+    
+    async def get_candles(self, instrument: str, granularity: str, count: int = 100,
+                         from_time: Optional[str] = None, to_time: Optional[str] = None,
+                         price: str = "M") -> Optional[List[Dict]]:
+        """
+        Get historical candlestick data
+        
+        Args:
+            instrument: Instrument name (e.g., EUR_USD)
+            granularity: Candle granularity (M1, M5, M15, M30, H1, H4, D)
+            count: Number of candles to return (default 100)
+            from_time: Start time in ISO format (e.g., "2023-01-01T00:00:00Z")
+            to_time: End time in ISO format (e.g., "2023-01-02T00:00:00Z")
+            price: Price type - M (midpoint), B (bid), A (ask) (default: M)
+            
+        Returns:
+            List of candle data dictionaries or None if error
+        """
+        try:
+            url = f"{self.base_url}/instruments/{instrument}/candles"
+            params = {
+                'price': price,
+                'granularity': granularity
+            }
+            
+            if from_time and to_time:
+                params['from'] = from_time
+                params['to'] = to_time
+            else:
+                params['count'] = count
+            
+            headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            async with self.session.get(url, params=params, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get('candles', [])
+                else:
+                    logger.error(f"HTTP error {response.status} fetching OANDA candles for {instrument}")
+                    return None
+        except Exception as e:
+            logger.error(f"Error fetching OANDA candles for {instrument}: {e}")
             return None
     
     async def close(self):

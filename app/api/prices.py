@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
-from app.models import Instrument
+from app.models import Instrument, Position, Account
 from app.schemas import PriceData, StandardResponse
 from app.services.price_service import price_service
 
@@ -80,7 +80,6 @@ async def get_prices_batch(symbols: List[dict], db: Session = Depends(get_db)):
 @router.get("/account/{account_id}/positions", response_model=List[PriceData])
 async def get_account_position_prices(account_id: int, db: Session = Depends(get_db)):
     """Get current prices for all instruments in an account's positions"""
-    from app.models import Position, Account
     
     # Validate account exists
     account = db.query(Account).filter(Account.id == account_id).first()
