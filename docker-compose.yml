@@ -4,10 +4,9 @@ services:
   broker-api:
     build: .
     ports:
-      - "8000:8000"
+      - "23456:23456"
     volumes:
       - ./data:/app/data
-      - .:/app
     environment:
       - DATABASE_URL=sqlite:///./data/broker.db
       - OANDA_API_KEY=${OANDA_API_KEY}
