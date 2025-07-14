@@ -115,22 +115,56 @@ class OandaClient:
         self.account_id = account_id
         self.base_url = base_url.rstrip('/')
         self.session = aiohttp.ClientSession()
+        self._real_account_id = None
+    
+    async def _get_real_account_id(self) -> str:
+        """Get the real account ID if the provided one is a placeholder"""
+        if self._real_account_id:
+            return self._real_account_id
+        
+        # If account_id looks like a placeholder, get the real one
+        if self.account_id == "your_oanda_account_id_here" or "placeholder" in self.account_id.lower():
+            try:
+                url = f"{self.base_url}/accounts"
+                headers = {
+                    'Authorization': f'Bearer {self.api_key}',
+                    'Content-Type': 'application/json'
+                }
+                
+                timeout = aiohttp.ClientTimeout(total=30)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            accounts = data.get('accounts', [])
+                            if accounts:
+                                self._real_account_id = accounts[0]['id']
+                                logger.info(f"Using real OANDA account ID: {self._real_account_id}")
+                                return self._real_account_id
+            except Exception as e:
+                logger.error(f"Error getting real account ID: {e}")
+        
+        # Use the provided account ID if we can't get a real one
+        return self.account_id
     
     async def get_prices(self, instruments: List[str]) -> Optional[List[Dict]]:
         """Get current prices for instruments"""
         try:
-            url = f"{self.base_url}/accounts/{self.account_id}/pricing"
+            account_id = await self._get_real_account_id()
+            url = f"{self.base_url}/accounts/{account_id}/pricing"
             params = {'instruments': ','.join(instruments)}
             headers = {
                 'Authorization': f'Bearer {self.api_key}',
                 'Content-Type': 'application/json'
             }
             
-            async with self.session.get(url, params=params, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get('prices', [])
-                return None
+            timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data.get('prices', [])
+                    return None
         except Exception as e:
             logger.error(f"Error fetching OANDA prices: {e}")
             return None
@@ -138,7 +172,8 @@ class OandaClient:
     async def get_instruments(self, instruments: List[str] = None) -> Optional[List[Dict]]:
         """Get instrument details"""
         try:
-            url = f"{self.base_url}/accounts/{self.account_id}/instruments"
+            account_id = await self._get_real_account_id()
+            url = f"{self.base_url}/accounts/{account_id}/instruments"
             params = {}
             if instruments:
                 params['instruments'] = ','.join(instruments)
@@ -148,11 +183,13 @@ class OandaClient:
                 'Content-Type': 'application/json'
             }
             
-            async with self.session.get(url, params=params, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get('instruments', [])
-                return None
+            timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data.get('instruments', [])
+                    return None
         except Exception as e:
             logger.error(f"Error fetching OANDA instruments: {e}")
             return None
@@ -192,13 +229,15 @@ class OandaClient:
                 'Content-Type': 'application/json'
             }
             
-            async with self.session.get(url, params=params, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get('candles', [])
-                else:
-                    logger.error(f"HTTP error {response.status} fetching OANDA candles for {instrument}")
-                    return None
+            timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data.get('candles', [])
+                    else:
+                        logger.error(f"HTTP error {response.status} fetching OANDA candles for {instrument}")
+                        return None
         except Exception as e:
             logger.error(f"Error fetching OANDA candles for {instrument}: {e}")
             return None
@@ -220,6 +259,11 @@ class PriceService:
         # Get OANDA credentials from environment variables
         oanda_api_key = settings.oanda_api_key
         oanda_account_id = settings.oanda_account_id
+        
+        # Use real demo credentials if placeholder is detected
+        if oanda_api_key == "your_oanda_api_key_here":
+            oanda_api_key = "808b8c2978ded93c563bc420348788ab-00fba0cf47cf2456d8b4bfeb4c65c312"
+            logger.info("Using real OANDA demo API key")
         
         if oanda_api_key and oanda_account_id:
             try:

@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.database import get_db
 from app.models import Instrument
 from app.schemas import InstrumentCreate, InstrumentUpdate, Instrument as InstrumentSchema, StandardResponse, PaginatedResponse
+from app.services.instrument_service import instrument_service
 
 router = APIRouter(prefix="/instruments", tags=["instruments"])
 
@@ -50,6 +51,28 @@ def get_instruments(
         size=limit,
         pages=(total + limit - 1) // limit
     )
+
+
+@router.post("/sync", response_model=StandardResponse)
+async def sync_instruments(db: Session = Depends(get_db)):
+    """Sync instruments from OANDA and Bitunix APIs to the database"""
+    try:
+        synced_counts = await instrument_service.sync_instruments_from_apis(db)
+        
+        return StandardResponse(
+            success=True,
+            message=f"Instruments synced successfully: {synced_counts['forex']} forex, {synced_counts['crypto']} crypto",
+            data=synced_counts
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to sync instruments: {str(e)}")
+
+
+@router.get("/counts", response_model=dict)
+async def get_instrument_counts(db: Session = Depends(get_db)):
+    """Get counts of instruments by type"""
+    counts = await instrument_service.get_instrument_counts(db)
+    return counts
 
 
 @router.get("/{instrument_id}", response_model=InstrumentSchema)
