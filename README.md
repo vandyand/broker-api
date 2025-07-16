@@ -66,11 +66,42 @@ BITUNIX_SECRET_KEY=your_bitunix_secret_key_here
 docker-compose up --build
 ```
 
-2. The API will be available at `http://localhost:8000`
+2. The API will be available at `http://localhost:23456`
 
-3. View the interactive API documentation at `http://localhost:8000/docs`
+3. View the interactive API documentation at `http://localhost:23456/docs`
 
-### Running Locally
+### Running as Systemd Service (Production)
+
+For production deployment on Linux systems with systemd:
+
+1. Deploy the service:
+```bash
+./deploy-local.sh
+```
+
+2. Check service status:
+```bash
+./status-local.sh
+```
+
+3. The API will be available at `http://localhost:23456`
+
+4. Service management:
+```bash
+# Restart service
+sudo systemctl restart broker-api
+
+# View logs
+sudo journalctl -u broker-api -f
+
+# Stop service
+sudo systemctl stop broker-api
+
+# Uninstall service
+./uninstall-local.sh
+```
+
+### Running Locally (Development)
 
 1. Install dependencies:
 ```bash
@@ -138,7 +169,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Creating a Trading Account
 ```bash
-curl -X POST "http://localhost:8000/accounts/" \
+curl -X POST "http://localhost:23456/accounts/" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Trading Account",
@@ -150,7 +181,7 @@ curl -X POST "http://localhost:8000/accounts/" \
 
 ### Placing a Market Order
 ```bash
-curl -X POST "http://localhost:8000/orders/" \
+curl -X POST "http://localhost:23456/orders/" \
   -H "Content-Type: application/json" \
   -d '{
     "account_id": 1,
@@ -163,12 +194,12 @@ curl -X POST "http://localhost:8000/orders/" \
 
 ### Getting Current Price
 ```bash
-curl -X GET "http://localhost:8000/prices/EUR_USD"
+curl -X GET "http://localhost:23456/prices/EUR_USD"
 ```
 
 ### Getting Account Positions
 ```bash
-curl -X GET "http://localhost:8000/positions/account/1"
+curl -X GET "http://localhost:23456/positions/account/1"
 ```
 
 ## Database Schema

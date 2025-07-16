@@ -1,0 +1,34 @@
+[Unit]
+Description=Broker API Service
+Documentation=https://github.com/your-repo/broker-api
+After=network.target
+Wants=network.target
+
+[Service]
+Type=exec
+User=broker-api
+Group=broker-api
+WorkingDirectory=/opt/broker-api
+Environment=PATH=/opt/broker-api/venv/bin
+Environment=PYTHONPATH=/opt/broker-api
+ExecStart=/opt/broker-api/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 23456
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=broker-api
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/broker-api/data
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target 
